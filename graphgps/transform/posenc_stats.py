@@ -1,6 +1,8 @@
 from copy import deepcopy
 
 import numpy as np
+#import scipy
+from scipy.sparse.linalg import eigsh
 import torch
 import torch.nn.functional as F
 from numpy.linalg import eigvals
@@ -8,7 +10,7 @@ from torch_geometric.utils import (get_laplacian, to_scipy_sparse_matrix,
                                    to_undirected, to_dense_adj)
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_scatter import scatter_add
-
+import time
 
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):
     """Precompute positional encodings for the given graph.
@@ -31,10 +33,12 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
         Extended PyG Data object.
     """
     # Verify PE types.
+    if len(pe_types) == 0:
+        raise ValueError(f"No PE stats selection in pe_types")
     for t in pe_types:
         if t not in ['LapPE', 'EquivStableLapPE', 'SignNet', 'RWSE', 'HKdiagSE', 'HKfullPE', 'ElstaticSE', 'ERN']:
             raise ValueError(f"Unexpected PE stats selection {t} in {pe_types}")
-
+    
     # Basic preprocessing of the input graph.
     if hasattr(data, 'num_nodes'):
         N = data.num_nodes  # Explicitly given number of nodes, e.g. ogbg-ppa
@@ -56,20 +60,24 @@ def compute_posenc_stats(data, pe_types, is_undirected, cfg):
             *get_laplacian(undir_edge_index, normalization=laplacian_norm_type,
                            num_nodes=N)
         )
-        evals, evects = np.linalg.eigh(L.toarray())
-        
+        max_freqs=cfg.posenc_LapPE.eigen.max_freqs
+        it1 = time.perf_counter()
+        #print(f"EXPANDER:: Starting eigsh for {max_freqs} with {L.shape}")
+        #evals, evects = eigsh(L, max_freqs, sigma=0, which='LM')
+        evals, evects = eigsh(L, max_freqs, which="SM", tol=1e-2, maxiter=1000)
+        #print(f"evals: {evals.shape}")
+        #print(f"evects: {evects.shape}")
+        #evals, evects = np.linalg.eigh(L.toarray())
+        #print(f"EXPANDER:: Finished in {time.perf_counter()-it1} s") 
         if 'LapPE' in pe_types:
-            max_freqs=cfg.posenc_LapPE.eigen.max_freqs
             eigvec_norm=cfg.posenc_LapPE.eigen.eigvec_norm
         elif 'EquivStableLapPE' in pe_types:  
-            max_freqs=cfg.posenc_EquivStableLapPE.eigen.max_freqs
             eigvec_norm=cfg.posenc_EquivStableLapPE.eigen.eigvec_norm
         
         data.EigVals, data.EigVecs = get_lap_decomp_stats(
             evals=evals, evects=evects,
             max_freqs=max_freqs,
             eigvec_norm=eigvec_norm)
-
     if 'SignNet' in pe_types:
         # Eigen-decomposition with numpy for SignNet.
         norm_type = cfg.posenc_SignNet.eigen.laplacian_norm.lower()
@@ -148,8 +156,8 @@ def get_lap_decomp_stats(evals, evects, max_freqs, eigvec_norm='L2'):
         Tensor (num_nodes, max_freqs, 1) eigenvalues repeated for each node
         Tensor (num_nodes, max_freqs) of eigenvector values per node
     """
-    N = len(evals)  # Number of nodes, including disconnected nodes.
-
+    N = len(evects)  # Number of nodes, including disconnected nodes.
+    #print(f"{N} Nodes for LAP and {max_freqs} freqs")
     # Keep up to the maximum desired number of frequencies.
     idx = evals.argsort()[:max_freqs]
     evals, evects = evals[idx], np.real(evects[:, idx])
@@ -203,7 +211,8 @@ def get_rw_landing_probs(ksteps, edge_index, edge_weight=None,
         P = edge_index.new_zeros((1, num_nodes, num_nodes))
     else:
         # P = D^-1 * A
-        P = torch.diag(deg_inv) @ to_dense_adj(edge_index, max_num_nodes=num_nodes)  # 1 x (Num nodes) x (Num nodes)
+        #P = torch.diag(deg_inv) @ to_dense_adj(edge_index, max_num_nodes=num_nodes)  # 1 x (Num nodes) x (Num nodes)
+        P = torch.sparse.mm(edge_index,torch.diag(deg_inv)).T
     rws = []
     if ksteps == list(range(min(ksteps), max(ksteps) + 1)):
         # Efficient way if ksteps are a consecutive sequence (most of the time the case)

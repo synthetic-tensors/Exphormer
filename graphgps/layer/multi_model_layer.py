@@ -103,6 +103,7 @@ class LocalModel(nn.Module):
             es_data = None
             if self.equivstable_pe:
                 es_data = batch.pe_EquivStableLapPE
+            print(f"GRAPHGPS:::h {h.shape}, batch.x {batch.x.shape}")
             local_out = self.local_model(Batch(batch=batch,
                                                x=h,
                                                edge_index=edge_index,

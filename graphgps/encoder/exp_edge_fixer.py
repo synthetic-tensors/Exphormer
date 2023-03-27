@@ -16,9 +16,9 @@ class ExpanderEdgeFixer(nn.Module):
         
         super().__init__()
 
-        if not hasattr(cfg.gt, 'dim_edge') or cfg.gt.dim_edge is None:
+        if not hasattr(cfg.gt, 'dim_edge') or cfg.gt.dim_edge is None or cfg.gt.dim_edge is False:
             cfg.gt.dim_edge = cfg.gt.dim_hidden
-
+        #print(f"GRAPHGPS cfg.gt.dim_edge - {cfg.gt.dim_edge}")
         self.add_edge_index = add_edge_index
         self.num_virt_node = num_virt_node
         self.exp_edge_attr = nn.Embedding(1, cfg.gt.dim_edge)
@@ -31,6 +31,7 @@ class ExpanderEdgeFixer(nn.Module):
 
 
     def forward(self, batch):
+        #print(f"GRAPHGPS:::Running ExpanderEdgeFixer")
         edge_types = []
         device = self.exp_edge_attr.weight.device
         edge_index_sets = []
@@ -45,8 +46,8 @@ class ExpanderEdgeFixer(nn.Module):
         num_graphs = batch.num_graphs
 
         if self.use_exp_edges:
-            if not hasattr(batch, 'expander_edges'):
-                raise ValueError('expander edges not stored in data')
+            #if not hasattr(batch, 'expander_edges'):
+            #    raise ValueError('expander edges not stored in data')
 
             data_list = batch.to_data_list()
             exp_edges = []
@@ -91,6 +92,7 @@ class ExpanderEdgeFixer(nn.Module):
             edge_types = edge_types[0]
 
         del batch.expander_edges
+        #print(f"GRAPHGPS:::Added edge_attr {edge_attr.shape}")
         batch.expander_edge_index = edge_index
         batch.expander_edge_attr = edge_attr
 

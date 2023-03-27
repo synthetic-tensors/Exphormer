@@ -22,6 +22,7 @@ class FeatureEncoder(torch.nn.Module):
         super(FeatureEncoder, self).__init__()
         self.dim_in = dim_in
         if cfg.dataset.node_encoder:
+            print("GRAPHGPS:::Adding node encoder")
             # Encode integer node features via nn.Embeddings
             NodeEncoder = register.node_encoder_dict[
                 cfg.dataset.node_encoder_name]
@@ -33,6 +34,7 @@ class FeatureEncoder(torch.nn.Module):
             # Update dim_in to reflect the new dimension fo the node features
             self.dim_in = cfg.gnn.dim_inner
         if cfg.dataset.edge_encoder:
+            print("GRAPHGPS:::Adding edge encoder")
             if not hasattr(cfg.gt, 'dim_edge') or cfg.gt.dim_edge is None:
                 cfg.gt.dim_edge = cfg.gt.dim_hidden
 
@@ -54,6 +56,7 @@ class FeatureEncoder(torch.nn.Module):
                                     has_bias=False, cfg=cfg))
 
         if 'Exphormer' in cfg.gt.layer_type:
+            print("GRAPHGPS:::Adding Exphormer edge fixer")
             self.exp_edge_fixer = ExpanderEdgeFixer(add_edge_index=cfg.prep.add_edge_index, 
                                                     num_virt_node=cfg.prep.num_virt_node)
 
@@ -76,7 +79,7 @@ class MultiModel(torch.nn.Module):
             self.pre_mp = GNNPreMP(
                 dim_in, cfg.gnn.dim_inner, cfg.gnn.layers_pre_mp)
             dim_in = cfg.gnn.dim_inner
-
+        print(f"GRAPHGPS:::dim_hidden: {cfg.gt.dim_hidden}, dim_inner: {cfg.gnn.dim_inner}, dim_in: {dim_in}")
         assert cfg.gt.dim_hidden == cfg.gnn.dim_inner == dim_in, \
             "The inner and hidden dims must match."
 

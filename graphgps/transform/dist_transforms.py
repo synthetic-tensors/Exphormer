@@ -9,7 +9,7 @@ from functools import partial
 from typing import Any, Optional
 from torch_geometric.data import Data
 from torch_geometric.utils import degree
-
+import time
 
 def bfs_shortest_path(source, G, max_n, cutoff):
 
@@ -193,12 +193,18 @@ def laplacian_eigenv(senders: np.ndarray,
       if receivers.max() > n:
         n = receivers.max()
       n += 1
-    
+    #t1 = time.perf_counter() 
     lap_mat = laplacian_matrix(senders, receivers, weights, n = n)
+    t2 = time.perf_counter()
+    #print(f"EXPANDER:: laplacian_matrix took {t2-t1}")
     # n = lap_mat.shape[0]
     k = min(n - 2, k + 1)
     # rows of eigenv correspond to graph nodes, cols correspond to eigenvalues
-    eigenvals, eigenvecs = sp.sparse.linalg.eigs(lap_mat, k=k, which='SM')
+    #print(f"EXPANDER:: generating {k} eigenvectors of matrix {lap_mat.shape}")
+    eigenvals, eigenvecs = sp.sparse.linalg.eigsh(lap_mat, k=k, which='SM')
+    #eigenvals, eigenvecs = sp.sparse.linalg.eigsh(lap_mat, k=k, sigma=0, which='LM')
+    #t3 = time.perf_counter()
+    #print(f"EXPANDER: eigs took {t3-t2}")
     eigenvals = np.real(eigenvals)
     eigenvecs = np.real(eigenvecs)
 

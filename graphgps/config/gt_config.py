@@ -26,7 +26,7 @@ def set_cfg_gt(cfg):
     cfg.gt.dim_hidden = 64
 
     # Size of the edge embedding
-    cfg.gt.dim_edge = None
+    cfg.gt.dim_edge = False
 
     # Full attention SAN transformer including all possible pairwise edges
     cfg.gt.full_graph = True

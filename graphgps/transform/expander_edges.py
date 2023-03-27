@@ -4,7 +4,7 @@ import scipy as sp
 from typing import Any, Optional
 import torch
 from graphgps.transform.dist_transforms import laplacian_eigenv
-
+import time
 
 def generate_random_regular_graph(num_nodes, degree, rng=None):
   """Generates a random d-regular gåraph with n nodes.
@@ -24,17 +24,23 @@ def generate_random_regular_graph(num_nodes, degree, rng=None):
 
   senders = [*range(0, num_nodes)] * degree
   receivers = rng.permutation(senders).tolist()
-
+  #senders = list(range(0,num_nodes))
+  #receivers = list()
+  #for i in range(degree):
+  #    receivers.append(rng.permutation(senders).tolist())
   senders, receivers = [*senders, *receivers], [*receivers, *senders]
 
-  # eliminate self loops.
+  #eliminate self loops.
   non_loops = [
       *filter(lambda i: senders[i] != receivers[i], range(0, len(senders)))
   ]
 
   senders = np.array(senders)[non_loops]
   receivers = np.array(receivers)[non_loops]
-
+  #senders = np.array(senders)
+  #receivers = np.array(receivers)
+  #print(f"Senders shape: {senders.shape}")
+  #print(f"Receivers shape: {receivers.shape}")
   return senders, receivers
 
 
@@ -88,8 +94,15 @@ def generate_random_expander(data, degree, rng=None, max_num_iters=100, exp_inde
           max_receivers.append(j)
   else:
     while eig_val < eig_val_lower_bound and cur_iter <= max_num_iters:
+      #print(f"EXPANDER:: Iter = {cur_iter}")
+      #t1 = time.perf_counter()
       senders, receivers = generate_random_regular_graph(num_nodes, degree, rng)
+      #t2 = time.perf_counter()
+      #print(f"EXPANDER:: generate_random_reglaur_graph took {t2-t1}")
       [eig_val, _] = laplacian_eigenv(senders, receivers, k=1, n=num_nodes)
+      #eig_val = [10000] #Use the random graph
+      #t3 = time.perf_counter()
+      #print(f"EXPANDER:: laplacian_eigenv tool {t3-t2}")
       if len(eig_val) == 0:
         print("num_nodes = %d, degree = %d, cur_iter = %d, mmax_iters = %d, senders = %d, receivers = %d" %(num_nodes, degree, cur_iter, max_num_iters, len(senders), len(receivers)))
         eig_val = 0
@@ -106,9 +119,9 @@ def generate_random_expander(data, degree, rng=None, max_num_iters=100, exp_inde
   max_senders = torch.tensor(max_senders, dtype=torch.long).view(-1, 1)
   max_receivers = torch.tensor(max_receivers, dtype=torch.long).view(-1, 1)
   if exp_index == 0:
+    #data.expander_edges = torch.cat([max_senders.unsqueeze(1), max_receivers.T], dim=1)
     data.expander_edges = torch.cat([max_senders, max_receivers], dim=1)
   else:
     attrname = f"expander_edges{exp_index}"
     setattr(data, attrname, torch.cat([max_senders, max_receivers], dim=1)) 
-
   return data

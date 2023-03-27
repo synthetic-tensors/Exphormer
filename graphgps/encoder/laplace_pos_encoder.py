@@ -102,13 +102,14 @@ class LapPENodeEncoder(torch.nn.Module):
             sign_flip[sign_flip >= 0.5] = 1.0
             sign_flip[sign_flip < 0.5] = -1.0
             EigVecs = EigVecs * sign_flip.unsqueeze(0)
-
         pos_enc = torch.cat((EigVecs.unsqueeze(2), EigVals), dim=2) # (Num nodes) x (Num Eigenvectors) x 2
         empty_mask = torch.isnan(pos_enc)  # (Num nodes) x (Num Eigenvectors) x 2
 
         pos_enc[empty_mask] = 0  # (Num nodes) x (Num Eigenvectors) x 2
         if self.raw_norm:
             pos_enc = self.raw_norm(pos_enc)
+        #print(pos_enc.device)
+        #print(next(self.linear_A.parameters()).device)
         pos_enc = self.linear_A(pos_enc)  # (Num nodes) x (Num Eigenvectors) x dim_pe
 
         # PE encoder: a Transformer or DeepSet model
@@ -131,6 +132,8 @@ class LapPENodeEncoder(torch.nn.Module):
 
         # Expand node features if needed
         if self.expand_x:
+            #print(batch.x.shape)
+            #print(self.linear_x)
             h = self.linear_x(batch.x)
         else:
             h = batch.x
