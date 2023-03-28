@@ -12,6 +12,8 @@ from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_scatter import scatter_add
 import time
 
+from tqdm import tqdm
+
 def compute_posenc_stats(data, pe_types, is_undirected, cfg):
     """Precompute positional encodings for the given graph.
 
@@ -212,22 +214,46 @@ def get_rw_landing_probs(ksteps, edge_index, edge_weight=None,
     else:
         # P = D^-1 * A
         #P = torch.diag(deg_inv) @ to_dense_adj(edge_index, max_num_nodes=num_nodes)  # 1 x (Num nodes) x (Num nodes)
-        P = torch.sparse.mm(edge_index,torch.diag(deg_inv)).T
+        #from scipy.sparse import spdiags
+        #print(f"deg_inv size: { deg_inv.shape}")
+        #print(f"deg_inv nonzero: {torch.count_nonzero(deg_inv)}")
+        #Dinv = spdiags(deg_inv.unsqueeze(0),0) #.unsqueeze(0),0)
+        #print(f"Dinv nnz: {Dinv.nnz}")
+
+        Dinv = torch.diag(deg_inv).to_sparse()
+        P = torch.sparse.mm(Dinv,edge_index)
+        #P = (Dinv @ to_scipy_sparse_matrix(edge_index)) #.tocoo()
+        #print(f"Result is of type {type(P)} with nnz={P.nnz} and shape {P.shape}")
+        #print(dir(P))
+        #P = torch.sparse.FloatTensor(torch.LongTensor([P.row.tolist(), P.col.tolist()]),
+        #                      torch.FloatTensor(P.data.astype(np.int32))).coalesce()
+        #P = torch.from_numpy(P.todense())
     rws = []
     if ksteps == list(range(min(ksteps), max(ksteps) + 1)):
         # Efficient way if ksteps are a consecutive sequence (most of the time the case)
         Pk = P.clone().detach().matrix_power(min(ksteps))
-        for k in range(min(ksteps), max(ksteps) + 1):
+        #Pk = P**min(ksteps)
+        for k in tqdm(range(min(ksteps), max(ksteps) + 1)):
+            #print(f"Running {k} of {ksteps}")
+            #print(f"Pk has {Pk.nnz} values and P has {P.nnz}")
+            
+        #Pk = P
+        #for k in tqdm(range(max(ksteps)+1)):
             rws.append(torch.diagonal(Pk, dim1=-2, dim2=-1) * \
                        (k ** (space_dim / 2)))
+            #if k >= min(ksteps): #No if for other loop range
+            #rws.append(torch.from_numpy(Pk.diagonal() * (k ** (space_dim / 2))).unsqueeze(0))
             Pk = Pk @ P
     else:
         # Explicitly raising P to power k for each k \in ksteps.
-        for k in ksteps:
-            rws.append(torch.diagonal(P.matrix_power(k), dim1=-2, dim2=-1) * \
-                       (k ** (space_dim / 2)))
+        for k in tqdm(ksteps):
+            #rws.append(torch.diagonal(P.matrix_power(k), dim1=-2, dim2=-1) * \
+            #           (k ** (space_dim / 2)))
+            rws.append((Pk**k).diagonal() * (k ** (space_dim / 2)))
+    #torch.save(rws,'rws.pt')
     rw_landing = torch.cat(rws, dim=0).transpose(0, 1)  # (Num nodes) x (K steps)
-
+    #print(rw_landing.shape)
+    #torch.save(rw_landing,'rw_landing.pt')
     return rw_landing
 
 
