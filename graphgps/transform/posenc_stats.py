@@ -3,6 +3,7 @@ from copy import deepcopy
 import numpy as np
 #import scipy
 from scipy.sparse.linalg import eigsh
+from scipy.sparse import spdiags
 import torch
 import torch.nn.functional as F
 from numpy.linalg import eigvals
@@ -213,15 +214,14 @@ def get_rw_landing_probs(ksteps, edge_index, edge_weight=None,
         P = edge_index.new_zeros((1, num_nodes, num_nodes))
     else:
         # P = D^-1 * A
-        #P = torch.diag(deg_inv) @ to_dense_adj(edge_index, max_num_nodes=num_nodes)  # 1 x (Num nodes) x (Num nodes)
-        #from scipy.sparse import spdiags
+        P = torch.diag(deg_inv) @ to_dense_adj(edge_index, max_num_nodes=num_nodes)  # 1 x (Num nodes) x (Num nodes)
         #print(f"deg_inv size: { deg_inv.shape}")
         #print(f"deg_inv nonzero: {torch.count_nonzero(deg_inv)}")
         #Dinv = spdiags(deg_inv.unsqueeze(0),0) #.unsqueeze(0),0)
         #print(f"Dinv nnz: {Dinv.nnz}")
 
-        Dinv = torch.diag(deg_inv).to_sparse()
-        P = torch.sparse.mm(Dinv,edge_index)
+        #Dinv = torch.diag(deg_inv) #.to_sparse()
+        #P = torch.sparse.mm(Dinv,edge_index)
         #P = (Dinv @ to_scipy_sparse_matrix(edge_index)) #.tocoo()
         #print(f"Result is of type {type(P)} with nnz={P.nnz} and shape {P.shape}")
         #print(dir(P))
@@ -233,7 +233,7 @@ def get_rw_landing_probs(ksteps, edge_index, edge_weight=None,
         # Efficient way if ksteps are a consecutive sequence (most of the time the case)
         Pk = P.clone().detach().matrix_power(min(ksteps))
         #Pk = P**min(ksteps)
-        for k in tqdm(range(min(ksteps), max(ksteps) + 1)):
+        for k in range(min(ksteps), max(ksteps) + 1):
             #print(f"Running {k} of {ksteps}")
             #print(f"Pk has {Pk.nnz} values and P has {P.nnz}")
             
@@ -246,7 +246,7 @@ def get_rw_landing_probs(ksteps, edge_index, edge_weight=None,
             Pk = Pk @ P
     else:
         # Explicitly raising P to power k for each k \in ksteps.
-        for k in tqdm(ksteps):
+        for k in ksteps:
             #rws.append(torch.diagonal(P.matrix_power(k), dim1=-2, dim2=-1) * \
             #           (k ** (space_dim / 2)))
             rws.append((Pk**k).diagonal() * (k ** (space_dim / 2)))
